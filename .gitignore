@@ -205,3 +205,30 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE e ambienti
+.vscode/
+.idea/
+.env
+venv/
+env/
+
+# Sistemi macOS e Linux
+.DS_Store
+Thumbs.db
+
+# File temporanei / cache Matplotlib
+*.png
+*.svg
+*.pdf
+*.log
+
+# Backup o dati temporanei
+*.bak
+*.tmp
