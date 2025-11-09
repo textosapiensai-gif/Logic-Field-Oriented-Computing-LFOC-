@@ -1,0 +1,191 @@
+# -----------------------------------------------
+# Logic Field-Oriented Computing (LFOC) - v4.4.1 Logic Monitor (fix)
+# Fetch / Decode / Execute / Repeat + real-time data panel
+# by Alessandro Sgarbi
+# -----------------------------------------------
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Button
+
+# --- Parametri base ---
+N_NODES = 20
+ALPHA = 0.03
+BETA = 0.97
+ENERGY = 0.4
+NOISE = 0.03
+MEMORY_DECAY = 0.9
+FIELD_SIZE = 30
+MAX_TRAIL = 50
+
+# --- Stati globali ---
+is_paused = False
+show_decode = False
+show_execute = False
+reset_flag = False
+
+
+def run_simulation():
+    global is_paused, show_decode, show_execute, reset_flag
+
+    # --- Inizializzazione ---
+    nodes = np.random.rand(N_NODES, 2) * FIELD_SIZE
+    velocities = (np.random.rand(N_NODES, 2) - 0.5) * ENERGY
+    weights = np.random.rand(N_NODES) * 2 + 0.5
+
+    BM = np.average(nodes, axis=0, weights=weights)
+    BM_prev = BM.copy()
+    BM_trail = [BM.copy()]
+
+    # --- Setup grafico a due colonne ---
+    fig, (ax_info, ax_field) = plt.subplots(
+        1, 2, figsize=(9, 6), gridspec_kw={'width_ratios': [1, 2]}
+    )
+    plt.subplots_adjust(bottom=0.25)
+    fig.suptitle("LFOC - Logic Monitor v4.4.1", fontsize=13)
+
+    # --- Pannello informativo ---
+    ax_info.axis('off')
+    text_info = ax_info.text(
+        0.02, 0.9,
+        "Logic Monitor\n\nMean dn: --\nMin dn: --\nMax dn: --\nEntropy σ: --\nEnergy: --",
+        fontsize=10, va='top', family='monospace'
+    )
+
+    # --- Campo ---
+    ax_field.set_xlim(0, FIELD_SIZE)
+    ax_field.set_ylim(0, FIELD_SIZE)
+    ax_field.set_xlabel("X")
+    ax_field.set_ylabel("Y")
+    scatter_nodes = ax_field.scatter(nodes[:, 0], nodes[:, 1], c='blue', s=25, alpha=0.8)
+    bm_point, = ax_field.plot([BM[0]], [BM[1]], 'rx', markersize=10)
+    trail_line, = ax_field.plot([], [], c='orange', lw=1, alpha=0.8)
+    poly_line, = ax_field.plot([], [], c='cyan', lw=1.5, alpha=0.8)
+    decode_lines, decode_labels = [], []
+
+    # --- Pulsanti ---
+    def on_fetch(event):
+        global is_paused
+        is_paused = not is_paused
+        btn_fetch.label.set_text("Resume" if is_paused else "Fetch")
+        fig.canvas.draw_idle()
+
+    def on_decode(event):
+        global show_decode
+        show_decode = not show_decode
+        btn_decode.color = 'lightgreen' if show_decode else 'lightgray'
+        fig.canvas.draw_idle()
+
+    def on_execute(event):
+        global show_execute
+        show_execute = not show_execute
+        btn_execute.color = 'lightskyblue' if show_execute else 'lightgray'
+        fig.canvas.draw_idle()
+
+    def on_repeat(event):
+        global reset_flag
+        reset_flag = True
+        plt.close(fig)
+
+    ax_fetch = plt.axes([0.1, 0.05, 0.18, 0.075])
+    btn_fetch = Button(ax_fetch, 'Fetch', color='lightgray', hovercolor='orange')
+    btn_fetch.on_clicked(on_fetch)
+
+    ax_decode = plt.axes([0.32, 0.05, 0.18, 0.075])
+    btn_decode = Button(ax_decode, 'Decode', color='lightgray', hovercolor='lightgreen')
+    btn_decode.on_clicked(on_decode)
+
+    ax_execute = plt.axes([0.54, 0.05, 0.18, 0.075])
+    btn_execute = Button(ax_execute, 'Execute', color='lightgray', hovercolor='lightskyblue')
+    btn_execute.on_clicked(on_execute)
+
+    ax_repeat = plt.axes([0.76, 0.05, 0.18, 0.075])
+    btn_repeat = Button(ax_repeat, 'Repeat', color='lightgray', hovercolor='orange')
+    btn_repeat.on_clicked(on_repeat)
+
+    plt.ion()
+    plt.show(block=False)
+
+    # --- Loop principale ---
+    while plt.fignum_exists(fig.number) and not reset_flag:
+        if not is_paused:
+            distances = nodes - BM
+            velocities = BETA * velocities - ALPHA * distances
+            velocities += (np.random.rand(N_NODES, 2) - 0.5) * NOISE
+            nodes += velocities
+            nodes = np.clip(nodes, 0, FIELD_SIZE)
+
+            BM_new = np.average(nodes + 0.2 * velocities, axis=0, weights=weights)
+            BM = MEMORY_DECAY * BM_prev + (1 - MEMORY_DECAY) * BM_new
+            BM_prev = BM.copy()
+            BM += (np.random.rand(2) - 0.5) * 0.05
+
+            BM_trail.append(BM.copy())
+            if len(BM_trail) > MAX_TRAIL:
+                BM_trail = BM_trail[-MAX_TRAIL:]
+
+            scatter_nodes.set_offsets(nodes)
+            bm_point.set_data([BM[0]], [BM[1]])
+
+            angles = np.arctan2(nodes[:, 1] - BM[1], nodes[:, 0] - BM[0])
+            order = np.argsort(angles)
+            ordered_nodes = nodes[order]
+            poly = np.vstack([ordered_nodes, ordered_nodes[0]])
+            poly_line.set_data(poly[:, 0], poly[:, 1])
+            trail = np.array(BM_trail)
+            trail_line.set_data(trail[:, 0], trail[:, 1])
+
+            # Decode lines
+            for l in decode_lines:
+                l.remove()
+            for lbl in decode_labels:
+                lbl.remove()
+            decode_lines.clear()
+            decode_labels.clear()
+
+            if show_decode:
+                for i, node in enumerate(nodes):
+                    dn = np.linalg.norm(node - BM)
+                    line, = ax_field.plot([BM[0], node[0]], [BM[1], node[1]],
+                                          linestyle='--', color='green', alpha=0.5, lw=0.8)
+                    decode_lines.append(line)
+                    lbl = ax_field.text((BM[0] + node[0]) / 2,
+                                        (BM[1] + node[1]) / 2,
+                                        f"{dn:.2f}", color='green',
+                                        fontsize=7, ha='center', va='center')
+                    decode_labels.append(lbl)
+
+            # Execute highlighting
+            if show_execute:
+                distances_mag = np.linalg.norm(nodes - BM, axis=1)
+                closest_idx = np.argsort(distances_mag)[:3]
+                colors = ['blue'] * N_NODES
+                for i in closest_idx:
+                    colors[i] = 'red'
+                scatter_nodes.set_color(colors)
+
+            # --- Logic Monitor ---
+            dn_vals = np.linalg.norm(nodes - BM, axis=1)
+            mean_dn = np.mean(dn_vals)
+            min_dn = np.min(dn_vals)
+            max_dn = np.max(dn_vals)
+            entropy = np.std(dn_vals)
+            energy_state = np.mean(np.linalg.norm(velocities, axis=1))
+            text_info.set_text(
+                f"Logic Monitor\n\n"
+                f"Mean dn: {mean_dn:.3f}\n"
+                f"Min dn:  {min_dn:.3f}\n"
+                f"Max dn:  {max_dn:.3f}\n"
+                f"Entropy σ: {entropy:.3f}\n"
+                f"Energy:   {energy_state:.3f}"
+            )
+
+        plt.pause(0.02)
+
+    if reset_flag:
+        reset_flag = False
+        run_simulation()
+
+# --- Avvio ---
+if __name__ == "__main__":
+    run_simulation()
