@@ -5,7 +5,7 @@ by **Alessandro Sgarbi**
 
 ---
 
-## 🧠 Concept
+## Concept
 
 **LFOC** models computation as a **living logical field** where data, memory, and logic continuously interact.  
 Each node represents a logical particle influenced by the **Barycentric Memory (BM)** — a dynamic center of coherence that evolves through time, storing and releasing informational energy.  
@@ -13,7 +13,7 @@ This creates a visual and mathematical bridge between **CPU–RAM dynamics** and
 
 ---
 
-## ⚙️ Features
+## Features
 
 - Interactive 2D simulation of logical nodes  
 - Real-time **Logic Monitor** showing:
@@ -26,7 +26,7 @@ This creates a visual and mathematical bridge between **CPU–RAM dynamics** and
 
 ---
 
-## 🚀 Run the Simulation
+## Run the Simulation
 
 **Requirements**
 ```bash
